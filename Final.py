@@ -52,15 +52,15 @@ try:
     y = uploaded_file_df_1['Actual']
     train_X, test_X, train_y, test_y = train_test_split(
         X, y, test_size=0.3, random_state=42)
-
+    
     st.subheader("Training Data :")
     st.write(train_X)
 
     st.subheader("Test Data :")
     st.write(test_X)
 
-    # Lasso Regression
-    tree_reg = DecisionTreeRegressor(max_depth=20)
+    # Implementing Decision Tree with suggested changes
+    tree_reg = DecisionTreeRegressor(max_depth=4, min_samples_split=5, random_state=42)
 
     # Fit the model
     tree_reg.fit(train_X, train_y)
@@ -70,10 +70,10 @@ try:
     tree_test_score = tree_reg.score(test_X, test_y)
 
     st.subheader("Train Accuracy :")
-    st.write("Decision Tree :", tree_train_score)
+    st.write("Decision Tree:", tree_train_score)
 
     st.subheader("Test Accuracy :")
-    st.write("Decision Tree :", tree_test_score)
+    st.write("Decision Tree:", tree_test_score)
 
     lst = []
     result_temp = []
