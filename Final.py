@@ -2,21 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import Lasso, LinearRegression
-from sklearn.model_selection import GridSearchCV
-from sklearn.tree import DecisionTreeRegressor
-import joblib
-import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestRegressor  # Import Random Forest Regressor
 import random
 
-
 # Global variables
-lasso_bud = 0
-lasso_pre = 0
-linear_bud = 0
-linear_pre = 0
-tree_pre = 0
-tree_bud = 0
+forest_bud = 0
+forest_pre = 0
 st.title("Welcome")
 
 try:
@@ -31,7 +22,6 @@ try:
     columns = ['Company', 'Brand', 'Product',
                'Actual', 'Month', 'Year', 'Budgeted']
     uploaded_file_df_1 = uploaded_file_df[columns]
-
 
     # Converting Categorical data into Numerical data
     uploaded_file_df_1 = pd.get_dummies(uploaded_file_df_1, columns=[
@@ -48,32 +38,33 @@ try:
     uploaded_file_df['Year'] = uploaded_file_df['Year'].astype(int)
 
     # Splitting the data into training and testing modules
-    X = uploaded_file_df_1 .drop(columns=['Actual', 'Budgeted'])
+    X = uploaded_file_df_1.drop(columns=['Actual', 'Budgeted'])
     y = uploaded_file_df_1['Actual']
     train_X, test_X, train_y, test_y = train_test_split(
         X, y, test_size=0.3, random_state=42)
-    
+
     st.subheader("Training Data :")
     st.write(train_X)
 
     st.subheader("Test Data :")
     st.write(test_X)
 
-    # Implementing Decision Tree with suggested changes
-    tree_reg = DecisionTreeRegressor(max_depth=4, min_samples_split=5, random_state=42)
+    # Implementing Random Forest with suggested changes
+    forest_reg = RandomForestRegressor(
+        n_estimators=350, max_depth=11, min_samples_leaf=5, random_state=42)  # Adjust hyperparameters as needed
 
     # Fit the model
-    tree_reg.fit(train_X, train_y)
+    forest_reg.fit(train_X, train_y)
 
     # Testing and training accuracy
-    tree_train_score = tree_reg.score(train_X, train_y)
-    tree_test_score = tree_reg.score(test_X, test_y)
+    forest_train_score = forest_reg.score(train_X, train_y)
+    forest_test_score = forest_reg.score(test_X, test_y)
 
     st.subheader("Train Accuracy :")
-    st.write("Decision Tree:", tree_train_score)
+    st.write("Random Forest:", forest_train_score)
 
     st.subheader("Test Accuracy :")
-    st.write("Decision Tree:", tree_test_score)
+    st.write("Random Forest:", forest_test_score)
 
     lst = []
     result_temp = []
@@ -96,10 +87,9 @@ try:
         # Create a new dataframe with the input data
         new_data = pd.DataFrame({f'{Company}': [1],
                                  f'{Brand}': [1],
-                                f'{Product}': [1],
+                                 f'{Product}': [1],
                                  f'{Month}': [1],
                                  'Year': [int(Year_value)]})
-
 
         # Preprocess the new data
         new_data = pd.get_dummies(new_data, drop_first=True)
@@ -107,48 +97,14 @@ try:
         # Reindex the columns to match the training data
         new_data = new_data.reindex(columns=train_X.columns, fill_value=0)
 
-        # Predict the value
-        tree_prediction = tree_reg.predict(new_data)[0]
+        # Predict the value using Random Forest
+        forest_prediction = forest_reg.predict(new_data)[0]
 
         # Add the predicted value to the list
-        lst_temp.append(tree_prediction)
+        lst_temp.append(forest_prediction)
         lst_temp.append(row['Actual'])
         lst_temp.append(row['Budgeted'])
         lst.append(lst_temp)
-
-        # # Add the Decision Tree predicted value to the row data
-        uploaded_file_df.at[index, 'Decision_Tree_Predicted'] = int(
-                tree_prediction)
-
-        if np.isnan(uploaded_file_df.at[index, 'Actual']-uploaded_file_df.at[index, 'Decision_Tree_Predicted']):
-            uploaded_file_df.at[index, 'Decision_Tree_Predicted_difference'] = int(0.0)
-        else:
-            uploaded_file_df.at[index, 'Decision_Tree_Predicted_difference'] = int(uploaded_file_df.at[index, 'Actual']-uploaded_file_df.at[index,
-                                                                                                                                'Decision_Tree_Predicted'])
-        if np.isnan(uploaded_file_df.at[index,'Budgeted'] - uploaded_file_df.at[index, 'Actual']):
-            uploaded_file_df.at[index, 'Decision_Tree_Budgeted_difference'] = 0
-        else:
-            uploaded_file_df.at[index, 'Decision_Tree_Budgeted_difference'] = uploaded_file_df.at[index,
-                                                                                            'Budgeted'] - uploaded_file_df.at[index, 'Actual']
-        
-        try:
-            if uploaded_file_df.at[index, 'Actual'] != 0:
-                uploaded_file_df.at[index, 'Decision_Predicted_percentage_difference'] = abs(int(
-                    (uploaded_file_df.at[index, 'Decision_Tree_Predicted_difference'] / uploaded_file_df.at[index, 'Actual']) * 100))
-            else:
-                uploaded_file_df.at[index,
-                                    'Decision_Predicted_percentage_difference'] = '-'
-            if abs(uploaded_file_df.at[index, 'Decision_Tree_Predicted_difference']) > abs(uploaded_file_df.at[index, 'Decision_Tree_Budgeted_difference']):
-                uploaded_file_df.at[index,
-                                    'Decision_Tree_vs_Budgeted'] = "Better Budgeted"
-                tree_bud = tree_bud + 1
-            else:
-                uploaded_file_df.at[index,
-                                    'Decision_Tree_vs_Budgeted'] = "Better Predicted"
-                tree_pre = tree_pre + 1
-        except Exception as inner_exception:
-            # Handle exceptions that may occur during the above operations
-            print(f"Inner Exception: {inner_exception}")
 
         result_temp.append({
             'Company': Company.replace('Company_', ' '),
@@ -156,10 +112,8 @@ try:
             'Product': Product.replace('Product_', ' '),
             'Month': Month.replace('Month_', ' '),
             'Year': str(Year_value).replace(',', ''),
-            'Prediction': tree_prediction,
+            'Prediction': forest_prediction,
             'Actual': Actual,
-            'Decision_Tree_Predicted_difference': uploaded_file_df.at[index, 'Decision_Tree_Predicted_difference'],
-            'Percentage_Difference': uploaded_file_df.at[index, 'Decision_Predicted_percentage_difference'],
         })
 
     company_list = uploaded_file_df['Company'].unique()
@@ -192,25 +146,25 @@ try:
     random_sample = random.sample(lst, k=random_value)
 
     # Creating a graph of random values
-    lst_pre_tree = []
+    lst_pre_forest = []
     lst_act = []
     lst_bud = []
     for i in range(0, random_value):
-        lst_pre_tree.append(random_sample[i][0])
+        lst_pre_forest.append(random_sample[i][0])
         lst_act.append(random_sample[i][1])
         lst_bud.append(random_sample[i][2])
 
-    x_rand_ltree = lst_pre_tree
+    x_rand_lforest = lst_pre_forest
     y_rand = lst_act
     traildf = {"Actual": y_rand,
-            "Budgeted": lst_bud, "Predicted Decision Tree": x_rand_ltree}
+               "Budgeted": lst_bud, "Predicted Random Forest": x_rand_lforest}
     st.write(f"Random {random_value} values from the dataset")
     st.line_chart(data=traildf)
 
-    # Created selection fields for the user to select the Company,Brand,Product,Month and Year
+    # Created selection fields for the user to select the Company, Brand, Product, Month and Year
     st.subheader("Prediction for new periods :")
     st.subheader(
-        'Please select the a Company and a Year  for Brands,Products and Months :')
+        'Please select a Company and a Year for Brands, Products, and Months :')
     selected_company = st.selectbox('Company', company_list)
     to_show_brand = company_and_brand_Dict[selected_company]
     selected_brand = st.multiselect("Brands", to_show_brand)
@@ -235,16 +189,17 @@ try:
                 input_Month = 'Month_' + month
 
                 new_data = pd.DataFrame({f'{input_Company}': [1],
-                                        f'{input_Brand}': [1],
-                                        f'{input_Product}': [1],
-                                        f'{input_Month}': [1],
-                                        'Year': [int(input_year)]})
+                                         f'{input_Brand}': [1],
+                                         f'{input_Product}': [1],
+                                         f'{input_Month}': [1],
+                                         'Year': [int(input_year)]})
                 new_data = pd.get_dummies(new_data, drop_first=True)
                 # Reindex the columns to match the training data
                 new_data = new_data.reindex(
                     columns=train_X.columns, fill_value=0)
 
-                tree_prediction = tree_reg.predict(new_data)[0]
+                # Predict the value using Random Forest
+                forest_prediction = forest_reg.predict(new_data)[0]
 
                 # Append the results to the list
                 results.append({
@@ -253,7 +208,7 @@ try:
                     'Product': input_Product.replace('Product_', ' '),
                     'Month': input_Month.replace('Month_', ' '),
                     "Year": input_year,
-                    'Prediction': tree_prediction
+                    'Prediction': forest_prediction
                 })
 
     # Convert the results list to a dataframe
@@ -274,13 +229,12 @@ try:
     )
 
     st.write(
-        "How many Times Decision tree Predicted is Better than Budgeted", tree_pre)
-    st.write("How many Times Budgeted is Better than Predicted", tree_bud)
+        "How many Times Random Forest Predicted is Better than Budgeted", forest_pre)
+    st.write("How many Times Budgeted is Better than Predicted", forest_bud)
 
     st.header("Thank you!")
 except:
     pass
-
 
 # killall streamlit
 # nohup streamlit run app_final.py
