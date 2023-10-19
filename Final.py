@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import re
 import streamlit as st
@@ -95,6 +96,7 @@ def calculate_accuracy_and_score(y_true, y_pred):
     return mae, mse, r2
 
 
+st.set_page_config(layout="wide")
 # Streamlit UI code
 st.title("Budget Prediction")
 
@@ -117,12 +119,16 @@ if uploaded_file is not None:
     filtered_data.fillna(0, inplace=True)
 
     selected_brands = st.multiselect(
-        "Select Brands", filtered_data['Brand'].unique())
+        "Select Brands", filtered_data['Brand'].unique(),
+        # default=filtered_data["Brand"][0] if len(filtered_data["Brand"]) > 0 else "None"
+    )
 
     filtered_data = filtered_data[filtered_data['Brand'].isin(selected_brands)]
 
     selected_products = st.multiselect(
-        "Select Products", filtered_data['Product'].unique())
+        "Select Products", filtered_data['Product'].unique(),
+        # default=filtered_data["Product"][0] if len(filtered_data["Product"]) > 0 else "None"
+    )
 
     filtered_data = filtered_data[filtered_data['Product'].isin(
         selected_products)]
@@ -131,31 +137,31 @@ if uploaded_file is not None:
     filtered_data = filtered_data.reset_index(drop=True)
 
     selected_months = st.multiselect("Select Months (Up to 3)", data['Month'].unique(), default=[
-                                     "January", "February", "March"], key="selected_months", help="Select up to 3 months.")
+                                     "January", "February", "March"], key="selected_months", help="Select up to 3 months.", max_selections=3)
 
     # Ensure only up to 3 months are selected
-    if len(selected_months) > 3:
-        st.warning("Please select up to 3 months.")
-        selected_months = selected_months[:3]
+    # if len(selected_months) > 3:
+    #     st.warning("Please select up to 3 months.")
+    #     selected_months = selected_months[:3]
 
     col1, col2, col3 = st.columns(3)  # Create 3 columns
     selected_year = col1.text_input("Enter Year", value="2019")
 
-    price_input = col2.text_input(
-        "Enter Price (US/ TT)", value=filtered_data["Price (US/ TT)"][0] if len(filtered_data["Price (US/ TT)"]) > 0 else 0.0)
-    selected_prices = float(price_input) if price_input else 0.0
+    # price_input = col2.text_input(
+    #     "Enter Price (US/ TT)", value=filtered_data["Price (US/ TT)"][0] if len(filtered_data["Price (US/ TT)"]) > 0 else 0.0)
+    # selected_prices = float(price_input) if price_input else 0.0
 
-    selected_ap = col3.text_input("Enter A&P", value=filtered_data["A&P"][0] if len(
-        filtered_data["A&P"]) > 0 else 0.0)
-    selected_ap = float(selected_ap) if selected_ap else 0.0
+    # selected_ap = col3.text_input("Enter A&P", value=filtered_data["A&P"][0] if len(
+    #     filtered_data["A&P"]) > 0 else 0.0)
+    # selected_ap = float(selected_ap) if selected_ap else 0.0
 
     model_budgeted, columns_used_for_training, train_X, train_y, test_X, test_y = train_model(
         data)
 
     selected_data = filtered_data.copy()
     selected_data['Year'] = selected_year
-    selected_data['Price (US/ TT)'] = selected_prices
-    selected_data['A&P'] = selected_ap
+    # selected_data['Price (US/ TT)'] = selected_prices
+    # selected_data['A&P'] = selected_ap
 
     # Remove duplicates based on the columns used for selection
     selected_data = selected_data.drop_duplicates(
@@ -164,37 +170,91 @@ if uploaded_file is not None:
     # Filter the selected data for the chosen months
     selected_data = selected_data[selected_data['Month'].isin(selected_months)]
 
-    predictions_budgeted = predict_budgeted(
-        model_budgeted, selected_data, columns_used_for_training)
+    selected_data_copy = selected_data.copy()  # for futher use
 
-    selected_data = selected_data.drop(columns=['Actual', 'Dummy'])
+    # predictions_budgeted = predict_budgeted(
+    #     model_budgeted, selected_data, columns_used_for_training)
 
-    selected_data['Predicted Budgeted'] = predictions_budgeted
-    selected_data['Predicted Budgeted'] = selected_data['Predicted Budgeted'].apply(
-        lambda x: round(x, 2))
+    # selected_data = selected_data.drop(columns=['Actual', 'Dummy'])
 
-    st.subheader("Result DataFrame (Budgeted):")
-    st.dataframe(selected_data[['Company', 'Brand', 'Product', 'Month',
-                 'Year', 'Price (US/ TT)', 'A&P', 'Predicted Budgeted']])
+    # selected_data['Predicted Budget'] = predictions_budgeted
+    # selected_data['Predicted Budget'] = selected_data['Predicted Budget'].apply(
+    #     lambda x: round(x, 2))
+
+    st.divider()
+    st.markdown(" ##### Edit the value of `Price (US/ TT)` and `A&P` ")
+
+    col1, col2 = st.columns([3, 1])
+
+    # selected_data['Actual'] = selected_data['Actual'].apply(
+    #     lambda x: round(x, 2))
+
+    editable_data = col1.experimental_data_editor(selected_data[[
+        'Company', 'Brand', 'Product', 'Month', 'Year', 'Price (US/ TT)', 'A&P', 'Actual']], use_container_width=True)
+
+   # Create a new DataFrame with the same column order as the training data
+    updated_data = pd.DataFrame()
+
+    # Add 'Year', 'Price (US/ TT)', and 'A&P' columns to the updated_data
+    updated_data['Year'] = selected_data['Year']
+    updated_data['Price (US/ TT)'] = editable_data['Price (US/ TT)']
+    updated_data['A&P'] = editable_data['A&P']
+
+    # selected_data['Price (US/ TT)'] = selected_data['Price (US/ TT)']
+    # selected_data['A&P'] = selected_data['A&P']
+    selected_data_copy['Price (US/ TT)'] = updated_data['Price (US/ TT)']
+    selected_data_copy['A&P'] = updated_data['A&P']
+
+    # Recalculate the predicted budget values based on the updated values
+    updated_data['Predicted Budget'] = predict_budgeted(
+        model_budgeted, selected_data_copy, columns_used_for_training)
+
+    # if st.button('Recalculate Predicted Budget'):
+    # Display the updated DataFrame with the new predicted budget values
+    # Show a DataFrame with 'Company', 'Brand', 'Product', 'Month', 'Year' from selected_data
+    # and 'Price (US/ TT)', 'A&P', 'Predicted Budget' from updated_data
+
+    selected_columns = [
+        # 'Company', 'Brand', 'Product', 'Month', 'Year'
+    ]
+    updated_columns = [
+        # 'Price (US/ TT)', 'A&P',
+        'Predicted Budget'
+    ]
+
+    # display_data = pd.concat(
+    #     [selected_data[selected_columns], updated_data[updated_columns]], axis=1)
+
+    display_data = updated_data['Predicted Budget']
+
+    # Predicted Budget as 2 decimal point
+
+    display_data = display_data.apply(lambda x: round(x, 2))
+
+    col2.dataframe(display_data)
 
     # make a download button for the result dataframe
 
+    # merge editable_data and display_data
+
+    final_data = pd.concat([editable_data, display_data], axis=1)
+
     st.download_button(
         label="Download Result DataFrame (Budgeted)",
-        data=selected_data.to_csv(index=False),
+        data=final_data.to_csv(index=False),
         file_name="result_dataframe_budgeted.csv",
         mime="text/csv",
     )
-
     # ------------- End of Result DataFrame (Budgeted) ------------- #
 
     # ------------- Start of Accuracy and Score ------------- #
 
-    st.subheader("Predicted Budgeted Accuracy and Score")
-    # Use 'Predicted Budgeted' column
-    y_true = selected_data['Budgeted']
-    # Use 'Predicted Budgeted' column
-    y_pred = selected_data['Predicted Budgeted']
+    st.divider()
+    st.subheader("Predicted Budget Accuracy and Score")
+    # Use 'Predicted Budget' column
+    y_true = selected_data_copy['Budgeted']
+    # Use 'Predicted Budget' column
+    y_pred = updated_data['Predicted Budget']
 
     mae, mse, r2 = calculate_accuracy_and_score(y_true, y_pred)
     # st.write(f"Mean Absolute Error: {mae:.2f}")
@@ -207,29 +267,26 @@ if uploaded_file is not None:
     st.write("Training Score:", forest_train_score)
     st.write("Testing Score:", forest_test_score)
 
-    # ...
+    import matplotlib.pyplot as plt  # Add this line
 
-    # After calculating the predictions for the next 4 years
-    st.subheader("Predictions for the next 4 years")
-    years_to_predict = [int(selected_year) +
-                        i for i in range(1, 5)]  # Next 4 years
+    # Create a DataFrame to store the results
+    results_df = pd.DataFrame({
+        # 'Company': selected_data_copy['Company'],
+        # 'Brand': selected_data_copy['Brand'],
+        # 'Product': selected_data_copy['Product'],
+        'Month': selected_data_copy['Month'],
+        'Actual': selected_data_copy['Actual'],
+        'Predicted': final_data['Predicted Budget']
+    })
 
-    # Make predictions for the next 4 years
-    predicted_budgeted_next_years = []
-    for year in years_to_predict:
-        selected_data['Year'] = year
-        predictions_budgeted = predict_budgeted(
-            model_budgeted, selected_data, columns_used_for_training)
-        predicted_budgeted_next_years.append(predictions_budgeted[0])
+    # Group by month
+    results_grouped = results_df.groupby(
+        'Month').max()
 
-    # Scale the predicted values to fit within the Y-axis range
-    scaling_factor = .1  # You can adjust this value based on your data
-    scaled_predicted_budgeted = [
-        value / scaling_factor for value in predicted_budgeted_next_years]
-
-    # Create a Streamlit line chart with scaled Y-axis values
-    st.line_chart(pd.DataFrame(
-        {'Year': years_to_predict, 'Scaled Predicted Budgeted': scaled_predicted_budgeted}).set_index('Year'))
-
-    # Label the Y-axis to reflect the scaling
-    st.text(f"Y-axis values scaled by a factor of {scaling_factor}")
+    # Create a bar chart to visualize the data
+    fig, ax = plt.subplots()
+    results_grouped.plot(kind='bar', ax=ax)
+    plt.xlabel('Month')
+    plt.ylabel('Value')
+    plt.title(f"Actual vs Predicted Values for {selected_year}")
+    st.pyplot(fig)
